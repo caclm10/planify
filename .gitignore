@@ -34,3 +34,11 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Docs
+"Project Management Idea.pdf"
+
+# PocketBase local database and binary
+/pocketbase/pocketbase
+/pocketbase/pb_data/
+
