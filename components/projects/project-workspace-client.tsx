@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { pb } from "@/lib/pocketbase";
@@ -10,13 +10,144 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, MoreHorizontal, Plus, Calendar, File as FileIcon, Link as LinkIcon, Download, ExternalLink, Settings, Trash2, X } from "lucide-react";
+import { Loader2, ArrowLeft, MoreHorizontal, Plus, Calendar, File as FileIcon, Link as LinkIcon, Download, ExternalLink, Settings, Trash2, X, MessageSquare, Check, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
+import {
+  DndContext,
+  DragEndEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  useDroppable,
+  closestCorners
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+interface SortableTaskCardProps {
+  task: any;
+  openEditTaskDialog: (task: any) => void;
+  updateTaskStatus: (taskId: string, newStatus: string) => void;
+  handleDeleteTask: (taskId: string) => void;
+}
+
+function SortableTaskCard({ task, openEditTaskDialog, updateTaskStatus, handleDeleteTask }: SortableTaskCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="touch-none select-none">
+      <Card 
+        className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group border-border/50 bg-background/80 backdrop-blur-sm"
+      >
+        <CardHeader className="p-4 pb-2">
+          <div className="flex justify-between items-start gap-2">
+            <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 text-muted-foreground opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[100]">
+                <DropdownMenuItem onClick={() => openEditTaskDialog(task)}>Edit Task...</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'todo')}>Move to To Do</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'in_progress')}>Move to In Progress</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'done')}>Move to Done</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={() => handleDeleteTask(task.id)}>Delete Task</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {task.description && (
+            <CardDescription className="text-xs line-clamp-2 mt-1">
+              {task.description}
+            </CardDescription>
+          )}
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="flex items-center justify-between mt-2">
+            {task.expand?.milestone_id ? (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/20 text-primary bg-primary/5">
+                {task.expand.milestone_id.title}
+              </Badge>
+            ) : <div />}
+            
+            {task.expand?.assignee_id && (
+              <Avatar className="h-6 w-6">
+                <AvatarFallback className="text-[10px] bg-secondary text-secondary-foreground">
+                  {task.expand.assignee_id.name?.charAt(0) || task.expand.assignee_id.email?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface DroppableColumnProps {
+  col: any;
+  children: React.ReactNode;
+  taskCount: number;
+}
+
+function DroppableColumn({ col, children, taskCount }: DroppableColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: col.id,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`rounded-xl border ${col.border} ${col.bg} p-4 flex flex-col min-h-[500px] transition-colors duration-200 ${isOver ? 'ring-2 ring-primary/20 bg-muted/40' : ''}`}
+    >
+      <div className="flex items-center justify-between mb-4 px-1">
+        <h3 className="font-semibold">{col.label}</h3>
+        <Badge variant="secondary" className="font-mono bg-background/50">
+          {taskCount}
+        </Badge>
+      </div>
+      
+      <div className="flex flex-col gap-3 min-h-[300px]">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -27,6 +158,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
   const [milestones, setMilestones] = useState<any[]>([]);
   const [resources, setResources] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeMobileColumn, setActiveMobileColumn] = useState<string>("todo");
 
   // New Task state
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
@@ -74,6 +206,52 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
   const [editTaskAssignee, setEditTaskAssignee] = useState("none");
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
 
+  // Tickets state
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [isTicketDialogOpen, setIsTicketDialogOpen] = useState(false);
+  const [newTicketTitle, setNewTicketTitle] = useState("");
+  const [newTicketDesc, setNewTicketDesc] = useState("");
+  const [newTicketCategory, setNewTicketCategory] = useState("bug");
+  const [newTicketPriority, setNewTicketPriority] = useState("medium");
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [convertingTicket, setConvertingTicket] = useState<any>(null);
+
+  // Ticket comments state
+  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
+  const expandedTicketIdRef = useRef<string | null>(null);
+  const [ticketComments, setTicketComments] = useState<any[]>([]);
+  const [newCommentText, setNewCommentText] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  useEffect(() => {
+    expandedTicketIdRef.current = expandedTicketId;
+  }, [expandedTicketId]);
+
+  // Alert Dialog state
+  const [alertDialogProps, setAlertDialogProps] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onConfirm: () => {}
+  });
+
+  const triggerConfirm = (title: string, description: string, onConfirm: () => void) => {
+    setAlertDialogProps({
+      isOpen: true,
+      title,
+      description,
+      onConfirm: () => {
+        onConfirm();
+        setAlertDialogProps(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
   useEffect(() => {
     if (project) {
       setEditProjectName(project.name || "");
@@ -93,11 +271,19 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     pb.collection('tasks').subscribe('*', () => loadTasks());
     pb.collection('milestones').subscribe('*', () => loadMilestones());
     pb.collection('resources').subscribe('*', () => loadResources());
+    pb.collection('tickets').subscribe('*', () => loadTickets());
+    pb.collection('ticket_comments').subscribe('*', () => {
+      if (expandedTicketIdRef.current) {
+        loadTicketComments(expandedTicketIdRef.current);
+      }
+    });
 
     return () => {
       pb.collection('tasks').unsubscribe('*');
       pb.collection('milestones').unsubscribe('*');
       pb.collection('resources').unsubscribe('*');
+      pb.collection('tickets').unsubscribe('*');
+      pb.collection('ticket_comments').unsubscribe('*');
     };
   }, [projectId]);
 
@@ -105,12 +291,43 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     try {
       const proj = await pb.collection('projects').getOne(projectId, { expand: 'members' });
       setProject(proj);
-      await Promise.all([loadTasks(), loadMilestones(), loadResources()]);
+      await Promise.all([loadTasks(), loadMilestones(), loadResources(), loadTickets()]);
     } catch (err) {
       toast.error("Failed to load project details");
       router.push("/dashboard");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadTickets = async () => {
+    try {
+      const records = await pb.collection('tickets').getFullList({
+        filter: `project_id = "${projectId}"`,
+        expand: 'reporter_id,assignee_id,task_id',
+        sort: '-created'
+      });
+      setTickets(records);
+    } catch (err) {
+      console.error("Failed to load tickets", err);
+    }
+  };
+
+  const syncTicketStatus = async (taskId: string, taskStatus: string) => {
+    try {
+      const records = await pb.collection('tickets').getFullList({
+        filter: `project_id = "${projectId}" && task_id = "${taskId}"`
+      });
+      if (records.length > 0) {
+        const linkedTicket = records[0];
+        const newTicketStatus = taskStatus === "done" ? "resolved" : "open";
+        if (linkedTicket.status !== newTicketStatus) {
+          await pb.collection('tickets').update(linkedTicket.id, { status: newTicketStatus });
+          loadTickets();
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync ticket status:", err);
     }
   };
 
@@ -145,36 +362,81 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
       const colTasks = tasks.filter(t => t.status === newStatus);
       const maxOrder = colTasks.length > 0 ? Math.max(...colTasks.map(t => t.order || 0)) : 0;
       await pb.collection('tasks').update(taskId, { status: newStatus, order: maxOrder + 1 });
+      await syncTicketStatus(taskId, newStatus);
       toast.success("Task updated");
     } catch (err) {
       toast.error("Failed to update task");
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    e.dataTransfer.setData("taskId", taskId);
-  };
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: string, dropIndex?: number) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    const draggedTask = tasks.find(t => t.id === activeId);
+    if (!draggedTask) return;
+
+    // Check if dropped over a column directly
+    const isOverColumn = columns.some(col => col.id === overId);
     
-    const draggedTaskId = e.dataTransfer.getData("taskId");
-    if (!draggedTaskId) return;
+    if (isOverColumn) {
+      const targetStatus = overId;
+      if (draggedTask.status === targetStatus) return; // No change needed
 
-    const sourceTask = tasks.find(t => t.id === draggedTaskId);
-    if (!sourceTask) return;
+      let targetColTasks = tasks.filter(t => t.status === targetStatus);
+      targetColTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      const maxOrder = targetColTasks.length > 0 ? Math.max(...targetColTasks.map(t => t.order || 0)) : 0;
+      const updatedDraggedTask = { ...draggedTask, status: targetStatus, order: maxOrder + 1 };
+      targetColTasks.push(updatedDraggedTask);
 
-    let targetColTasks = tasks.filter(t => t.status === targetStatus && t.id !== draggedTaskId);
-    targetColTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+      // Optimistic state update
+      setTasks(prev => prev.map(t => t.id === activeId ? updatedDraggedTask : t));
 
-    if (dropIndex !== undefined) {
-      targetColTasks.splice(dropIndex, 0, sourceTask);
-    } else {
-      targetColTasks.push(sourceTask);
+      try {
+        await pb.collection('tasks').update(activeId, { 
+          status: targetStatus, 
+          order: maxOrder + 1
+        });
+        await syncTicketStatus(activeId, targetStatus);
+      } catch (err) {
+        toast.error("Failed to update task");
+        loadTasks();
+      }
+      return;
     }
 
-    setTasks(prev => prev.map(t => t.id === draggedTaskId ? { ...t, status: targetStatus } : t));
+    // Dropped over another task
+    const overTask = tasks.find(t => t.id === overId);
+    if (!overTask) return;
+
+    const targetStatus = overTask.status;
+    const isSameColumn = draggedTask.status === targetStatus;
+
+    let targetColTasks = tasks.filter(t => t.status === targetStatus && t.id !== activeId);
+    targetColTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const overIndex = targetColTasks.findIndex(t => t.id === overId);
+    
+    if (overIndex !== -1) {
+      targetColTasks.splice(overIndex, 0, draggedTask);
+    } else {
+      targetColTasks.push(draggedTask);
+    }
+
+    // Optimistic state update
+    setTasks(prev => prev.map(t => t.id === activeId ? { ...t, status: targetStatus } : t));
 
     try {
       await Promise.all(targetColTasks.map((t, index) => {
@@ -183,14 +445,11 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
           order: index 
         });
       }));
+      await syncTicketStatus(activeId, targetStatus);
     } catch (err) {
       toast.error("Failed to reorder tasks");
       loadTasks();
     }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -199,7 +458,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     try {
       const colTasks = tasks.filter(t => t.status === newTaskStatus);
       const maxOrder = colTasks.length > 0 ? Math.max(...colTasks.map(t => t.order || 0)) : 0;
-      await pb.collection('tasks').create({
+      const createdTask = await pb.collection('tasks').create({
         project_id: projectId,
         title: newTaskTitle,
         description: newTaskDesc,
@@ -208,7 +467,20 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
         milestone_id: newTaskMilestone !== "none" ? newTaskMilestone : null,
         assignee_id: newTaskAssignee !== "none" ? newTaskAssignee : null
       });
-      toast.success("Task created");
+
+      // Link ticket to this task if converting
+      if (convertingTicket) {
+        await pb.collection('tickets').update(convertingTicket.id, {
+          task_id: createdTask.id,
+          status: newTaskStatus === "done" ? "resolved" : "open"
+        });
+        toast.success("Ticket successfully converted to task!");
+        setConvertingTicket(null);
+        loadTickets();
+      } else {
+        toast.success("Task created");
+      }
+
       setIsTaskDialogOpen(false);
       setNewTaskTitle("");
       setNewTaskDesc("");
@@ -217,6 +489,96 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
       toast.error("Failed to create task");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingTicket(true);
+    try {
+      await pb.collection('tickets').create({
+        project_id: projectId,
+        title: newTicketTitle,
+        description: newTicketDesc,
+        status: "open",
+        priority: newTicketPriority,
+        category: newTicketCategory,
+        reporter_id: user.id
+      });
+      toast.success("Ticket submitted successfully!");
+      setIsTicketDialogOpen(false);
+      setNewTicketTitle("");
+      setNewTicketDesc("");
+      setNewTicketCategory("bug");
+      setNewTicketPriority("medium");
+      loadTickets();
+    } catch (err) {
+      toast.error("Failed to submit ticket");
+    } finally {
+      setIsSubmittingTicket(false);
+    }
+  };
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    triggerConfirm(
+      "Are you sure you want to delete this ticket?",
+      "This action cannot be undone. This will permanently delete the support ticket and remove its backlog status.",
+      async () => {
+        try {
+          await pb.collection('tickets').delete(ticketId);
+          toast.success("Ticket deleted");
+          loadTickets();
+        } catch (err) {
+          toast.error("Failed to delete ticket");
+        }
+      }
+    );
+  };
+
+  const handleConvertTicketToTask = (ticket: any) => {
+    setConvertingTicket(ticket);
+    const categoryLabel = {
+      bug: "BUG",
+      feature_request: "FEATURE",
+      refactor: "REFACTOR",
+      support: "SUPPORT"
+    }[ticket.category as string] || "TICKET";
+
+    setNewTaskTitle(`[${categoryLabel}] ${ticket.title}`);
+    setNewTaskDesc(`Ticket Description:\n${ticket.description}\n\nSubmitted by ${ticket.expand?.reporter_id?.name || ticket.expand?.reporter_id?.email || 'User'}`);
+    setNewTaskStatus("todo");
+    setIsTaskDialogOpen(true);
+  };
+
+  const loadTicketComments = async (ticketId: string) => {
+    try {
+      const records = await pb.collection('ticket_comments').getFullList({
+        filter: `ticket_id = "${ticketId}"`,
+        expand: 'user_id',
+        sort: 'created'
+      });
+      setTicketComments(records);
+    } catch (err) {
+      console.error("Failed to load comments", err);
+    }
+  };
+
+  const handleCreateComment = async (e: React.FormEvent, ticketId: string) => {
+    e.preventDefault();
+    if (!newCommentText.trim()) return;
+    setIsSubmittingComment(true);
+    try {
+      await pb.collection('ticket_comments').create({
+        ticket_id: ticketId,
+        user_id: user.id,
+        content: newCommentText
+      });
+      setNewCommentText("");
+      loadTicketComments(ticketId);
+    } catch (err) {
+      toast.error("Failed to add comment");
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
@@ -242,6 +604,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
         milestone_id: editTaskMilestone !== "none" ? editTaskMilestone : null,
         assignee_id: editTaskAssignee !== "none" ? editTaskAssignee : null
       });
+      await syncTicketStatus(editingTask.id, editTaskStatus);
       toast.success("Task updated");
       setIsEditTaskDialogOpen(false);
       setEditingTask(null);
@@ -253,13 +616,18 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
-    try {
-      await pb.collection('tasks').delete(taskId);
-      toast.success("Task deleted");
-    } catch (err) {
-      toast.error("Failed to delete task");
-    }
+    triggerConfirm(
+      "Are you sure you want to delete this task?",
+      "This action cannot be undone. This will permanently delete the task from the Kanban board.",
+      async () => {
+        try {
+          await pb.collection('tasks').delete(taskId);
+          toast.success("Task deleted");
+        } catch (err) {
+          toast.error("Failed to delete task");
+        }
+      }
+    );
   };
 
   const handleInviteMember = async (e: React.FormEvent) => {
@@ -357,16 +725,21 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
   };
 
   const handleDeleteProject = async () => {
-    if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) return;
-    setIsDeletingProject(true);
-    try {
-      await pb.collection('projects').delete(projectId);
-      toast.success("Project deleted");
-      router.push("/dashboard");
-    } catch (err) {
-      toast.error("Failed to delete project");
-      setIsDeletingProject(false);
-    }
+    triggerConfirm(
+      "Are you sure you want to delete this project?",
+      "This action cannot be undone. This will permanently delete the project workspace, all tasks, milestones, and resource attachments.",
+      async () => {
+        setIsDeletingProject(true);
+        try {
+          await pb.collection('projects').delete(projectId);
+          toast.success("Project deleted");
+          router.push("/dashboard");
+        } catch (err) {
+          toast.error("Failed to delete project");
+          setIsDeletingProject(false);
+        }
+      }
+    );
   };
 
   const handleRemoveMember = async (memberId: string) => {
@@ -526,18 +899,26 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
       {/* Main Content Area */}
       <main className="flex-1 p-4 md:p-8 max-w-[1600px] mx-auto w-full">
         <Tabs defaultValue="kanban" className="w-full h-full flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <TabsList className="bg-muted/50 p-1 h-auto">
-              <TabsTrigger value="kanban" className="px-6 py-2.5 rounded-md data-[state=active]:shadow-sm">Kanban Board</TabsTrigger>
-              <TabsTrigger value="milestones" className="px-6 py-2.5 rounded-md data-[state=active]:shadow-sm">Milestones</TabsTrigger>
-              <TabsTrigger value="resources" className="px-6 py-2.5 rounded-md data-[state=active]:shadow-sm">Resources</TabsTrigger>
+          <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center mb-6">
+            <TabsList className="bg-muted/50 p-1 h-auto flex w-full sm:w-auto">
+              <TabsTrigger value="kanban" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Kanban Board</TabsTrigger>
+              <TabsTrigger value="milestones" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Milestones</TabsTrigger>
+              <TabsTrigger value="tickets" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Tickets</TabsTrigger>
+              <TabsTrigger value="resources" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Resources</TabsTrigger>
             </TabsList>
 
             {/* Contextual Actions */}
-            <div>
-              <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+            <div className="flex gap-2">
+              <Dialog open={isTaskDialogOpen} onOpenChange={(open) => {
+                setIsTaskDialogOpen(open);
+                if (!open) {
+                  setConvertingTicket(null);
+                  setNewTaskTitle("");
+                  setNewTaskDesc("");
+                }
+              }}>
                 <DialogTrigger asChild>
-                  <Button className="shadow-sm">
+                  <Button className="shadow-sm w-full sm:w-auto">
                     <Plus className="mr-2 h-4 w-4" /> Add Task
                   </Button>
                 </DialogTrigger>
@@ -675,84 +1056,74 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
           </div>
 
           <TabsContent value="kanban" className="flex-1 mt-0 outline-none">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full items-start">
-              {columns.map(col => (
-                <div 
-                  key={col.id} 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, col.id)}
-                  className={`rounded-xl border ${col.border} ${col.bg} p-4 flex flex-col min-h-[500px]`}
-                >
-                  <div className="flex items-center justify-between mb-4 px-1">
-                    <h3 className="font-semibold">{col.label}</h3>
-                    <Badge variant="secondary" className="font-mono bg-background/50">
-                      {tasks.filter(t => t.status === col.id).length}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex flex-col gap-3">
-                    {tasks.filter(t => t.status === col.id).sort((a, b) => (a.order || 0) - (b.order || 0)).map((task, index) => (
-                      <Card 
-                        key={task.id} 
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, task.id)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, col.id, index)}
-                        className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group border-border/50 bg-background/80 backdrop-blur-sm"
-                      >
-                        <CardHeader className="p-4 pb-2">
-                          <div className="flex justify-between items-start gap-2">
-                            <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditTaskDialog(task)}>Edit Task...</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'todo')}>Move to To Do</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'in_progress')}>Move to In Progress</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'done')}>Move to Done</DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={() => handleDeleteTask(task.id)}>Delete Task</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                          {task.description && (
-                            <CardDescription className="text-xs line-clamp-2 mt-1">
-                              {task.description}
-                            </CardDescription>
-                          )}
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0">
-                          <div className="flex items-center justify-between mt-2">
-                            {task.expand?.milestone_id ? (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/20 text-primary bg-primary/5">
-                                {task.expand.milestone_id.title}
-                              </Badge>
-                            ) : <div />}
-                            
-                            {task.expand?.assignee_id && (
-                              <Avatar className="h-6 w-6">
-                                <AvatarFallback className="text-[10px] bg-secondary text-secondary-foreground">
-                                  {task.expand.assignee_id.name?.charAt(0) || task.expand.assignee_id.email?.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                    
-                    {tasks.filter(t => t.status === col.id).length === 0 && (
-                      <div className="h-24 border-2 border-dashed border-border/50 rounded-lg flex items-center justify-center text-sm text-muted-foreground/50">
-                        Drop items here
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+            {/* Mobile Column Selector (hidden on md and up) */}
+            <div className="flex md:hidden bg-muted/40 p-1 rounded-xl mb-4 gap-1.5 border border-border/50">
+              {columns.map(col => {
+                const isActive = activeMobileColumn === col.id;
+                const count = tasks.filter(t => t.status === col.id).length;
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => setActiveMobileColumn(col.id)}
+                    className={`flex-1 py-2.5 text-xs font-medium rounded-lg transition-all ${
+                      isActive 
+                        ? 'bg-background text-foreground shadow-sm' 
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {col.label} ({count})
+                  </button>
+                );
+              })}
             </div>
+
+            <DndContext 
+              sensors={sensors} 
+              collisionDetection={closestCorners} 
+              onDragEnd={handleDragEnd}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full items-start">
+                {columns.map(col => {
+                  const colTasks = tasks
+                    .filter(t => t.status === col.id)
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                  return (
+                    <div 
+                      key={col.id}
+                      className={activeMobileColumn === col.id ? 'block' : 'hidden md:block'}
+                    >
+                      <DroppableColumn 
+                        col={col} 
+                        taskCount={colTasks.length}
+                      >
+                        <SortableContext 
+                          items={colTasks.map(t => t.id)} 
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {colTasks.map(task => (
+                            <SortableTaskCard 
+                              key={task.id} 
+                              task={task} 
+                              openEditTaskDialog={openEditTaskDialog}
+                              updateTaskStatus={updateTaskStatus}
+                              handleDeleteTask={handleDeleteTask}
+                            />
+                          ))}
+                        </SortableContext>
+                        
+                        {colTasks.length === 0 && (
+                          <div className="h-24 border-2 border-dashed border-border/50 rounded-lg flex items-center justify-center text-sm text-muted-foreground/30">
+                            Drop items here
+                          </div>
+                        )}
+                      </DroppableColumn>
+                    </div>
+                  );
+                })}
+              </div>
+            </DndContext>
           </TabsContent>
 
           <TabsContent value="milestones" className="mt-0">
@@ -805,7 +1176,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                     
                     return (
                       <div key={m.id} className="space-y-2 border rounded-lg p-5 bg-card/50">
-                        <div className="flex justify-between items-start mb-2">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                           <div>
                             <h3 className="font-semibold text-lg">{m.title}</h3>
                             <div className="flex items-center text-sm text-muted-foreground mt-1">
@@ -929,8 +1300,312 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="tickets" className="mt-0">
+            <Card className="border-border/50 shadow-sm bg-card/60 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Tickets Backlog</CardTitle>
+                    <CardDescription>Issue inbox and suggestions for the team</CardDescription>
+                  </div>
+                  <Dialog open={isTicketDialogOpen} onOpenChange={setIsTicketDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> New Ticket</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <form onSubmit={handleCreateTicket}>
+                        <DialogHeader>
+                          <DialogTitle>Create Support Ticket</DialogTitle>
+                          <DialogDescription className="sr-only">Submit a bug report or feature request.</DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4 space-y-4">
+                          <div className="space-y-2">
+                            <Label>Ticket Title</Label>
+                            <Input required placeholder="e.g. Broken authentication on login page" value={newTicketTitle} onChange={e => setNewTicketTitle(e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Description</Label>
+                            <Input required placeholder="Provide clear steps to reproduce or details" value={newTicketDesc} onChange={e => setNewTicketDesc(e.target.value)} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Category</Label>
+                              <Select value={newTicketCategory} onValueChange={setNewTicketCategory}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="bug">Bug</SelectItem>
+                                  <SelectItem value="feature_request">Feature Request</SelectItem>
+                                  <SelectItem value="refactor">Refactor</SelectItem>
+                                  <SelectItem value="support">Support</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Priority</Label>
+                              <Select value={newTicketPriority} onValueChange={setNewTicketPriority}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="low">Low</SelectItem>
+                                  <SelectItem value="medium">Medium</SelectItem>
+                                  <SelectItem value="high">High</SelectItem>
+                                  <SelectItem value="critical">Critical</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="submit" disabled={isSubmittingTicket}>
+                            {isSubmittingTicket && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Submit Ticket
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {tickets.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-lg bg-card/30">
+                    <Loader2 className="h-12 w-12 text-muted-foreground/30 mb-4 animate-pulse" />
+                    <h3 className="font-medium text-muted-foreground">No tickets submitted yet</h3>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">Use tickets to log bugs, ideas, or refactors before scheduling them on the Kanban board.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {tickets.map(ticket => {
+                      const priorityColor = {
+                        low: "bg-zinc-100 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-300",
+                        medium: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                        high: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+                        critical: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                      }[ticket.priority as string] || "bg-secondary text-secondary-foreground";
+
+                      const categoryLabel = {
+                        bug: "🐛 Bug",
+                        feature_request: "✨ Feature",
+                        refactor: "⚙️ Refactor",
+                        support: "🤝 Support"
+                      }[ticket.category as string] || ticket.category;
+
+                      return (
+                        <div key={ticket.id} className="relative group flex flex-col p-4 sm:p-5 border rounded-xl hover:bg-muted/30 transition-colors bg-background/50">
+                          {/* Floating Delete Button (Top-Right) */}
+                          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8 rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTicket(ticket.id);
+                              }}
+                              aria-label="Delete ticket"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="flex flex-col gap-3">
+                            {/* Title & Badges */}
+                            <div className="space-y-1.5 pr-8 sm:pr-10">
+                              <h4 className="font-semibold text-base leading-tight text-foreground">
+                                {ticket.title}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Badge className={`text-[9px] sm:text-[10px] font-normal uppercase tracking-wider px-1.5 py-0.5 ${priorityColor}`}>
+                                  {ticket.priority}
+                                </Badge>
+                                <Badge variant="outline" className="text-[9px] sm:text-[10px] font-normal px-1.5 py-0.5">
+                                  {categoryLabel}
+                                </Badge>
+                                <Badge 
+                                  variant={ticket.status === 'resolved' ? "outline" : "secondary"} 
+                                  className={`text-[9px] sm:text-[10px] font-normal capitalize px-1.5 py-0.5 ${
+                                    ticket.status === 'resolved' 
+                                      ? "border-green-200 text-green-700 bg-green-50 dark:border-green-900/30 dark:text-green-400 dark:bg-green-950/20" 
+                                      : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30"
+                                  }`}
+                                >
+                                  Status: {ticket.status}
+                                </Badge>
+                                {ticket.task_id && (
+                                  <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50 dark:border-green-900/30 dark:text-green-400 dark:bg-green-950/20 text-[9px] sm:text-[10px] font-normal px-1.5 py-0.5">
+                                    ✓ Converted
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Description */}
+                            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                              {ticket.description}
+                            </p>
+
+                            {/* Divider & Footer Row (Reporter Info + Responsive Actions) */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-3 pt-3 border-t border-border/30 z-0">
+                              <div className="text-[11px] sm:text-xs text-muted-foreground">
+                                Reported by <span className="font-semibold text-foreground/80">{ticket.expand?.reporter_id?.name || ticket.expand?.reporter_id?.email || 'User'}</span> on {format(new Date(ticket.created), 'PPP')}
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost"
+                                  className={`text-xs justify-center col-span-2 sm:col-auto h-8 sm:h-9 ${
+                                    expandedTicketId === ticket.id 
+                                      ? 'bg-primary/10 text-primary hover:bg-primary/20' 
+                                      : 'text-muted-foreground hover:text-foreground border border-border/20 sm:border-0'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (expandedTicketId === ticket.id) {
+                                      setExpandedTicketId(null);
+                                      setTicketComments([]);
+                                    } else {
+                                      setExpandedTicketId(ticket.id);
+                                      loadTicketComments(ticket.id);
+                                    }
+                                  }}
+                                >
+                                  <MessageSquare className="mr-1.5 h-3.5 w-3.5" /> Discussion
+                                </Button>
+
+                                {!ticket.task_id && (
+                                  <>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      className="text-xs border-primary/20 text-primary hover:bg-primary/5 shadow-sm h-8 sm:h-9 justify-center"
+                                      onClick={() => handleConvertTicketToTask(ticket)}
+                                    >
+                                      <Plus className="mr-1.5 h-3.5 w-3.5" /> Convert
+                                    </Button>
+
+                                    {ticket.status === 'resolved' ? (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950/20 border border-orange-200 dark:border-orange-900/30 shadow-sm h-8 sm:h-9 justify-center"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          try {
+                                            await pb.collection('tickets').update(ticket.id, { status: 'open' });
+                                            toast.success("Ticket reopened");
+                                            loadTickets();
+                                          } catch (err) {
+                                            toast.error("Failed to reopen ticket");
+                                          }
+                                        }}
+                                      >
+                                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reopen
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-xs text-green-600 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-950/20 border border-green-200 dark:border-green-900/30 shadow-sm h-8 sm:h-9 justify-center"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          try {
+                                            await pb.collection('tickets').update(ticket.id, { status: 'resolved' });
+                                            toast.success("Ticket marked as resolved");
+                                            loadTickets();
+                                          } catch (err) {
+                                            toast.error("Failed to resolve ticket");
+                                          }
+                                        }}
+                                      >
+                                        <Check className="mr-1.5 h-3.5 w-3.5" /> Resolve
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Expanded Comments Thread */}
+                          {expandedTicketId === ticket.id && (
+                            <div className="mt-4 pt-4 border-t border-border/50 space-y-4">
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Discussion Thread</div>
+                              
+                              {/* Comments list */}
+                              <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                                {ticketComments.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground italic py-2">No comments yet. Start the discussion below!</p>
+                                ) : (
+                                  ticketComments.map(comment => (
+                                    <div key={comment.id} className="flex gap-2.5 items-start text-sm">
+                                      <Avatar className="h-7 w-7 flex-none">
+                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                          {comment.expand?.user_id?.name?.charAt(0) || comment.expand?.user_id?.email?.charAt(0)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="flex-1 bg-muted/40 p-2.5 rounded-xl border border-border/20">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-xs font-semibold">{comment.expand?.user_id?.name || comment.expand?.user_id?.email || 'User'}</span>
+                                          <span className="text-[10px] text-muted-foreground">{format(new Date(comment.created), 'MMM d, h:mm a')}</span>
+                                        </div>
+                                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">{comment.content}</p>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                              
+                              {/* New Comment Input */}
+                              <form onSubmit={(e) => handleCreateComment(e, ticket.id)} className="flex gap-2 pt-2 items-end">
+                                <div className="flex-1">
+                                  <Input 
+                                    placeholder="Type a message or technical note..." 
+                                    value={newCommentText}
+                                    onChange={e => setNewCommentText(e.target.value)}
+                                    className="text-xs h-9 bg-background/50"
+                                    disabled={isSubmittingComment}
+                                  />
+                                </div>
+                                <Button type="submit" size="sm" className="h-9 px-4 text-xs flex-none" disabled={isSubmittingComment || !newCommentText.trim()}>
+                                  {isSubmittingComment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Send"}
+                                </Button>
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
+
+      <AlertDialog 
+        open={alertDialogProps.isOpen} 
+        onOpenChange={(open) => setAlertDialogProps(prev => ({ ...prev, isOpen: open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{alertDialogProps.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {alertDialogProps.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              variant="destructive"
+              onClick={alertDialogProps.onConfirm}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

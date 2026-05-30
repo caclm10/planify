@@ -13,4 +13,6 @@ export const COLLECTIONS = {
   MILESTONES: 'milestones',
   TASKS: 'tasks',
   RESOURCES: 'resources',
+  TICKETS: 'tickets',
+  TICKET_COMMENTS: 'ticket_comments',
 };
