@@ -300,6 +300,20 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
         }
       }
     });
+    pb.collection('ticket_activities').subscribe('*', (e: any) => {
+      if (expandedTicketIdRef.current) {
+        loadTicketComments(expandedTicketIdRef.current);
+      }
+      if (e.action === 'create') {
+        if (e.record.user_id !== pb.authStore.model?.id) {
+          if (e.record.action === 'resolved') {
+            toast(`✓ Ticket marked as resolved`);
+          } else if (e.record.action === 'reopened') {
+            toast(`⟳ Ticket reopened`);
+          }
+        }
+      }
+    });
 
     return () => {
       pb.collection('tasks').unsubscribe('*');
@@ -307,6 +321,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
       pb.collection('resources').unsubscribe('*');
       pb.collection('tickets').unsubscribe('*');
       pb.collection('ticket_comments').unsubscribe('*');
+      pb.collection('ticket_activities').unsubscribe('*');
     };
   }, [projectId]);
 
@@ -498,6 +513,8 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
           status: newTaskStatus === "done" ? "resolved" : "open"
         });
         toast.success("Ticket successfully converted to task!");
+        // Log activity
+        await logTicketActivity(convertingTicket.id, "converted_to_task", createdTask.title);
         setConvertingTicket(null);
         loadTickets();
       } else {
@@ -515,11 +532,24 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     }
   };
 
+  const logTicketActivity = async (ticketId: string, action: string, details?: string) => {
+    try {
+      await pb.collection('ticket_activities').create({
+        ticket_id: ticketId,
+        user_id: user.id,
+        action: action,
+        details: details || ""
+      });
+    } catch (err) {
+      console.error("Failed to log activity", err);
+    }
+  };
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingTicket(true);
     try {
-      await pb.collection('tickets').create({
+      const createdTicket = await pb.collection('tickets').create({
         project_id: projectId,
         title: newTicketTitle,
         description: newTicketDesc,
@@ -535,6 +565,8 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
       setNewTicketCategory("bug");
       setNewTicketPriority("medium");
       loadTickets();
+      // Log activity
+      await logTicketActivity(createdTicket.id, "created", newTicketTitle);
     } catch (err) {
       toast.error("Failed to submit ticket");
     } finally {
@@ -575,12 +607,31 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
 
   const loadTicketComments = async (ticketId: string) => {
     try {
-      const records = await pb.collection('ticket_comments').getFullList({
+      const comments = await pb.collection('ticket_comments').getFullList({
         filter: `ticket_id = "${ticketId}"`,
         expand: 'user_id',
         sort: 'created'
       });
-      setTicketComments(records);
+
+      let activities: any[] = [];
+      try {
+        activities = await pb.collection('ticket_activities').getFullList({
+          filter: `ticket_id = "${ticketId}"`,
+          expand: 'user_id',
+          sort: 'created'
+        });
+      } catch (e) {
+        console.error("Failed to load activities", e);
+      }
+
+      const commentsWithMarker = comments.map(c => ({ ...c, timelineType: 'comment' }));
+      const activitiesWithMarker = activities.map(a => ({ ...a, timelineType: 'activity' }));
+
+      const mergedTimeline = [...commentsWithMarker, ...activitiesWithMarker].sort((x, y) => {
+        return new Date(x.created).getTime() - new Date(y.created).getTime();
+      });
+
+      setTicketComments(mergedTimeline);
     } catch (err) {
       console.error("Failed to load comments", err);
     }
@@ -596,8 +647,11 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
         user_id: user.id,
         content: newCommentText
       });
+      const commentContent = newCommentText;
       setNewCommentText("");
       loadTicketComments(ticketId);
+      // Log activity
+      await logTicketActivity(ticketId, "commented", commentContent);
     } catch (err) {
       toast.error("Failed to add comment");
     } finally {
@@ -1562,6 +1616,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                                             await pb.collection('tickets').update(ticket.id, { status: 'open' });
                                             toast.success("Ticket reopened");
                                             loadTickets();
+                                            await logTicketActivity(ticket.id, "reopened");
                                           } catch (err) {
                                             toast.error("Failed to reopen ticket");
                                           }
@@ -1580,6 +1635,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                                             await pb.collection('tickets').update(ticket.id, { status: 'resolved' });
                                             toast.success("Ticket marked as resolved");
                                             loadTickets();
+                                            await logTicketActivity(ticket.id, "resolved");
                                           } catch (err) {
                                             toast.error("Failed to resolve ticket");
                                           }
@@ -1604,21 +1660,37 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                                 {ticketComments.length === 0 ? (
                                   <p className="text-xs text-muted-foreground italic py-2">No comments yet. Start the discussion below!</p>
                                 ) : (
-                                  ticketComments.map(comment => (
-                                    <div key={comment.id} className="flex gap-2.5 items-start text-sm">
-                                      <Avatar className="h-7 w-7 flex-none">
-                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                          {comment.expand?.user_id?.name?.charAt(0) || comment.expand?.user_id?.email?.charAt(0)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div className="flex-1 bg-muted/40 p-2.5 rounded-xl border border-border/20">
-                                        <div className="flex justify-between items-center mb-1">
-                                          <span className="text-xs font-semibold">{comment.expand?.user_id?.name || comment.expand?.user_id?.email || 'User'}</span>
-                                          <span className="text-[10px] text-muted-foreground">{format(new Date(comment.created), 'MMM d, h:mm a')}</span>
+                                  ticketComments.map(item => (
+                                    item.timelineType === 'comment' ? (
+                                      <div key={item.id} className="flex gap-2.5 items-start text-sm">
+                                        <Avatar className="h-7 w-7 flex-none">
+                                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                            {item.expand?.user_id?.name?.charAt(0) || item.expand?.user_id?.email?.charAt(0)}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 bg-muted/40 p-2.5 rounded-xl border border-border/20">
+                                          <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-semibold">{item.expand?.user_id?.name || item.expand?.user_id?.email || 'User'}</span>
+                                            <span className="text-[10px] text-muted-foreground">{format(new Date(item.created), 'MMM d, h:mm a')}</span>
+                                          </div>
+                                          <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">{item.content}</p>
                                         </div>
-                                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">{comment.content}</p>
                                       </div>
-                                    </div>
+                                    ) : (
+                                      <div key={item.id} className="flex items-center gap-2 text-xs text-muted-foreground pl-9 py-1 relative">
+                                        <div className="absolute left-3.5 top-0 bottom-0 w-0.5 bg-border/40 -z-10" />
+                                        <div className="h-2 w-2 rounded-full bg-border flex-none -ml-4 mr-2" />
+                                        <span className="font-semibold text-foreground/80">{item.expand?.user_id?.name || item.expand?.user_id?.email || 'User'}</span>
+                                        <span>
+                                          {item.action === 'created' && `created this ticket`}
+                                          {item.action === 'resolved' && `marked this ticket as resolved ✓`}
+                                          {item.action === 'reopened' && `reopened this ticket ⟳`}
+                                          {item.action === 'converted_to_task' && `converted this ticket to a Kanban task: "${item.details}"`}
+                                          {item.action === 'commented' && `added a comment`}
+                                        </span>
+                                        <span className="text-[10px] ml-auto">{format(new Date(item.created), 'MMM d, h:mm a')}</span>
+                                      </div>
+                                    )
                                   ))
                                 )}
                               </div>
