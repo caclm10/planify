@@ -647,11 +647,8 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
         user_id: user.id,
         content: newCommentText
       });
-      const commentContent = newCommentText;
       setNewCommentText("");
       loadTicketComments(ticketId);
-      // Log activity
-      await logTicketActivity(ticketId, "commented", commentContent);
     } catch (err) {
       toast.error("Failed to add comment");
     } finally {
@@ -1686,7 +1683,6 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                                           {item.action === 'resolved' && `marked this ticket as resolved ✓`}
                                           {item.action === 'reopened' && `reopened this ticket ⟳`}
                                           {item.action === 'converted_to_task' && `converted this ticket to a Kanban task: "${item.details}"`}
-                                          {item.action === 'commented' && `added a comment`}
                                         </span>
                                         <span className="text-[10px] ml-auto">{format(new Date(item.created), 'MMM d, h:mm a')}</span>
                                       </div>
