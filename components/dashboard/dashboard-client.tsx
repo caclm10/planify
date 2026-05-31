@@ -11,14 +11,21 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Loader2, Plus, Calendar, LogOut, Users } from "lucide-react";
+import { Loader2, Plus, Calendar, LogOut, Users, Sun, Moon } from "lucide-react";
 import { format } from "date-fns";
+import { useTheme } from "next-themes";
 
 export function DashboardClient() {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [themeMounted, setThemeMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setThemeMounted(true);
+  }, []);
   
   // Create project form state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -187,6 +194,16 @@ export function DashboardClient() {
               </form>
             </DialogContent>
           </Dialog>
+
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} 
+            title="Toggle theme"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {themeMounted && resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
 
           <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out">
             <LogOut className="h-4 w-4" />

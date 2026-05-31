@@ -25,8 +25,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, MoreHorizontal, Plus, Calendar, File as FileIcon, Link as LinkIcon, Download, ExternalLink, Settings, Trash2, X, MessageSquare, Check, RotateCcw } from "lucide-react";
+import { Loader2, ArrowLeft, MoreHorizontal, Plus, Calendar, File as FileIcon, Link as LinkIcon, Download, ExternalLink, Settings, Trash2, X, MessageSquare, Check, RotateCcw, Sun, Moon } from "lucide-react";
 import { format } from "date-fns";
+import { useTheme } from "next-themes";
 import {
   DndContext,
   DragEndEvent,
@@ -151,9 +152,15 @@ function DroppableColumn({ col, children, taskCount }: DroppableColumnProps) {
 
 export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [themeMounted, setThemeMounted] = useState(false);
   
   const [user, setUser] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
+
+  useEffect(() => {
+    setThemeMounted(true);
+  }, []);
   const [tasks, setTasks] = useState<any[]>([]);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [resources, setResources] = useState<any[]>([]);
@@ -849,6 +856,16 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                 </form>
               </DialogContent>
             </Dialog>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              title="Toggle theme"
+            >
+              {themeMounted && resolvedTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+
             <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
