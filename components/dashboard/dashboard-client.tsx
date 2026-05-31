@@ -36,7 +36,21 @@ export function DashboardClient() {
     loadProjects();
 
     // Subscribe to real-time changes on projects
-    pb.collection('projects').subscribe('*', function (e) {
+    pb.collection('projects').subscribe('*', function (e: any) {
+      if (e.action === 'create' || e.action === 'update') {
+        const isMember = e.record.members?.includes(pb.authStore.model?.id);
+        if (isMember) {
+          setProjects((prev) => {
+            const alreadyExists = prev.some(p => p.id === e.record.id);
+            if (!alreadyExists) {
+              toast.success(`🎉 You've been added to a new team: "${e.record.name}"`, {
+                description: e.record.description || "Open the workspace to collaborate with your team.",
+              });
+            }
+            return prev;
+          });
+        }
+      }
       loadProjects();
     });
 
