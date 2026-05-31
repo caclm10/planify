@@ -271,10 +271,26 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     pb.collection('tasks').subscribe('*', () => loadTasks());
     pb.collection('milestones').subscribe('*', () => loadMilestones());
     pb.collection('resources').subscribe('*', () => loadResources());
-    pb.collection('tickets').subscribe('*', () => loadTickets());
-    pb.collection('ticket_comments').subscribe('*', () => {
+    pb.collection('tickets').subscribe('*', (e: any) => {
+      loadTickets();
+      if (e.action === 'create') {
+        if (e.record.reporter_id !== pb.authStore.model?.id) {
+          toast(`📢 New Ticket: "${e.record.title}"`, {
+            description: e.record.description,
+          });
+        }
+      }
+    });
+    pb.collection('ticket_comments').subscribe('*', (e: any) => {
       if (expandedTicketIdRef.current) {
         loadTicketComments(expandedTicketIdRef.current);
+      }
+      if (e.action === 'create') {
+        if (e.record.user_id !== pb.authStore.model?.id) {
+          toast("💬 New comment added in discussion", {
+            description: e.record.content,
+          });
+        }
       }
     });
 
@@ -919,7 +935,14 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
             <TabsList className="bg-muted/50 p-1 h-auto flex w-full sm:w-auto">
               <TabsTrigger value="kanban" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Kanban Board</TabsTrigger>
               <TabsTrigger value="milestones" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Milestones</TabsTrigger>
-              <TabsTrigger value="tickets" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Tickets</TabsTrigger>
+              <TabsTrigger value="tickets" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm gap-1.5 flex items-center justify-center">
+                Tickets
+                {tickets.filter((t: any) => t.status === 'open').length > 0 && (
+                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-red-100 bg-red-600 rounded-full animate-pulse">
+                    {tickets.filter((t: any) => t.status === 'open').length}
+                  </span>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="resources" className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm rounded-md data-[state=active]:shadow-sm">Resources</TabsTrigger>
             </TabsList>
 
