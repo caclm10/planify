@@ -705,6 +705,22 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     }
   };
 
+  const handleDeleteResource = async (resourceId: string) => {
+    triggerConfirm(
+      "Are you sure you want to delete this resource?",
+      "This action cannot be undone. This will permanently delete the resource from the workspace.",
+      async () => {
+        try {
+          await pb.collection('resources').delete(resourceId);
+          toast.success("Resource deleted");
+          loadResources();
+        } catch (err: any) {
+          toast.error(err.message || "Failed to delete resource");
+        }
+      }
+    );
+  };
+
   const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdatingProject(true);
@@ -1282,17 +1298,28 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                             </p>
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm" asChild>
-                          {res.type === 'file' ? (
-                            <a href={pb.files.getURL(res, res.file_attachment)} target="_blank" rel="noopener noreferrer">
-                              <Download className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <a href={res.link_url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          )}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" asChild>
+                            {res.type === 'file' ? (
+                              <a href={pb.files.getURL(res, res.file_attachment)} target="_blank" rel="noopener noreferrer">
+                                <Download className="h-4 w-4" />
+                              </a>
+                            ) : (
+                              <a href={res.link_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            )}
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            onClick={() => handleDeleteResource(res.id)}
+                            aria-label="Delete resource"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
