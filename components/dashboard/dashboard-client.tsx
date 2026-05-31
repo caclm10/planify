@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Loader2, Plus, Calendar, LogOut, Users, Sun, Moon } from "lucide-react";
 import { format } from "date-fns";
+import { id } from "date-fns/locale";
 import { useTheme } from "next-themes";
 
 export function DashboardClient() {
@@ -248,8 +249,8 @@ export function DashboardClient() {
                   <div className="flex items-center text-sm text-muted-foreground mb-4">
                     <Calendar className="mr-2 h-4 w-4" />
                     {project.target_end_date 
-                      ? `Due ${format(new Date(project.target_end_date), 'MMM d, yyyy')}`
-                      : "No deadline"}
+                      ? `Tenggat: ${format(new Date(project.target_end_date), 'd MMM yyyy', { locale: id })}`
+                      : "Tidak ada tenggat"}
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />

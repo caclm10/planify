@@ -27,6 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, MoreHorizontal, Plus, Calendar, File as FileIcon, Link as LinkIcon, Download, ExternalLink, Settings, Trash2, X, MessageSquare, Check, RotateCcw, Sun, Moon } from "lucide-react";
 import { format } from "date-fns";
+import { id } from "date-fns/locale";
 import { useTheme } from "next-themes";
 import {
   DndContext,
@@ -1288,7 +1289,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                             <h3 className="font-semibold text-lg">{m.title}</h3>
                             <div className="flex items-center text-sm text-muted-foreground mt-1">
                               <Calendar className="mr-1.5 h-3.5 w-3.5" />
-                              {m.due_date ? format(new Date(m.due_date), 'PPP') : 'No due date'}
+                              {m.due_date ? format(new Date(m.due_date), 'd MMM yyyy', { locale: id }) : 'Tidak ada tenggat'}
                             </div>
                           </div>
                           <Badge variant={progress === 100 ? "default" : "secondary"} className={progress === 100 ? "bg-green-500 hover:bg-green-600" : ""}>
@@ -1385,7 +1386,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                           <div>
                             <h4 className="font-medium">{res.name}</h4>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                              Added by {res.expand?.uploaded_by?.name || 'User'} on {format(new Date(res.created), 'MMM d')}
+                              Ditambahkan oleh {res.expand?.uploaded_by?.name || 'User'} pada {format(new Date(res.created), 'd MMM', { locale: id })}
                             </p>
                           </div>
                         </div>
@@ -1565,7 +1566,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                             {/* Divider & Footer Row (Reporter Info + Responsive Actions) */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-3 pt-3 border-t border-border/30 z-0">
                               <div className="text-[11px] sm:text-xs text-muted-foreground">
-                                Reported by <span className="font-semibold text-foreground/80">{ticket.expand?.reporter_id?.name || ticket.expand?.reporter_id?.email || 'User'}</span> on {format(new Date(ticket.created), 'PPP')}
+                                Dilaporkan oleh <span className="font-semibold text-foreground/80">{ticket.expand?.reporter_id?.name || ticket.expand?.reporter_id?.email || 'User'}</span> pada {format(new Date(ticket.created), 'd MMM yyyy', { locale: id })}
                               </div>
                               
                               <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
@@ -1668,7 +1669,7 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                                         <div className="flex-1 bg-muted/40 p-2.5 rounded-xl border border-border/20">
                                           <div className="flex justify-between items-center mb-1">
                                             <span className="text-xs font-semibold">{item.expand?.user_id?.name || item.expand?.user_id?.email || 'User'}</span>
-                                            <span className="text-[10px] text-muted-foreground">{format(new Date(item.created), 'MMM d, h:mm a')}</span>
+                                            <span className="text-[10px] text-muted-foreground">{format(new Date(item.created), 'd MMM yyyy, HH:mm', { locale: id })}</span>
                                           </div>
                                           <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">{item.content}</p>
                                         </div>
@@ -1679,12 +1680,12 @@ export function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
                                         <div className="h-2 w-2 rounded-full bg-border flex-none -ml-4 mr-2" />
                                         <span className="font-semibold text-foreground/80">{item.expand?.user_id?.name || item.expand?.user_id?.email || 'User'}</span>
                                         <span>
-                                          {item.action === 'created' && `created this ticket`}
-                                          {item.action === 'resolved' && `marked this ticket as resolved ✓`}
-                                          {item.action === 'reopened' && `reopened this ticket ⟳`}
-                                          {item.action === 'converted_to_task' && `converted this ticket to a Kanban task: "${item.details}"`}
+                                          {item.action === 'created' && `membuat tiket ini`}
+                                          {item.action === 'resolved' && `menyelesaikan tiket ini ✓`}
+                                          {item.action === 'reopened' && `membuka kembali tiket ini ⟳`}
+                                          {item.action === 'converted_to_task' && `mengonversi tiket ini menjadi tugas Kanban: "${item.details}"`}
                                         </span>
-                                        <span className="text-[10px] ml-auto">{format(new Date(item.created), 'MMM d, h:mm a')}</span>
+                                        <span className="text-[10px] ml-auto">{format(new Date(item.created), 'd MMM yyyy, HH:mm', { locale: id })}</span>
                                       </div>
                                     )
                                   ))
